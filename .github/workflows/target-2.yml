@@ -26,16 +26,16 @@ jobs:
         run: |
           set -euo pipefail
 
-          # 1. Pull active tracker list.
+          # Silent run — public-repo workflow logs must not leak tracker
+          # IDs, cloak URLs, money URLs, or partner names. Counts only.
           LIST=$(curl -fsS -H "X-Internal-Auth: $TOKEN" "$LIST_URL")
           TRACKER_COUNT=$(echo "$LIST" | jq '.trackers | length')
           if [ "$TRACKER_COUNT" = "0" ]; then
-            echo "No active trackers to probe."
+            echo "no_trackers"
             exit 0
           fi
+          echo "probing ${TRACKER_COUNT} tracker(s) × 4 personas"
 
-          # 2. Probe each tracker with 4 personas. UA strings approximate
-          #    what FB's bot/AI/crawler/reviewer present to a target page.
           UA_HUMAN='Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/126 Mobile/15E148 Safari/604.1'
           UA_BOT='Mozilla/5.0 (compatible; HeadlessChrome/124.0.0.0) AppleWebKit/537.36'
           UA_FB_CRAWLER='facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)'
@@ -69,12 +69,10 @@ jobs:
             done
           done < <(echo "$LIST" | jq -c '.trackers[]')
 
-          echo "Payload (truncated):"
-          echo "$REPORTS" | jq '.[0:4]'
-
-          # 3. Report all results in one batch — endpoint groups by tracker.
-          curl -fsS -X POST \
+          # Don't echo REPORTS — it contains cloak URLs + Location values.
+          HTTP_CODE=$(curl -fsS -o /dev/null -w '%{http_code}' -X POST \
             -H "X-Internal-Auth: $TOKEN" \
             -H "Content-Type: application/json" \
             -d "$(jq -n --argjson r "$REPORTS" '{reports: $r}')" \
-            "$REPORT_URL"
+            "$REPORT_URL")
+          echo "report_http=${HTTP_CODE}"

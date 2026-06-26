@@ -6,16 +6,33 @@ target. Public repo for unlimited Actions minutes.
 
 ## Public-repo policy
 
-This repo is public. Workflow YAML is world-readable. To avoid leaking
-recon signal:
+This repo is public. Workflow YAML **and workflow run logs** are
+world-readable. To avoid leaking recon signal:
 
 1. **Never put a hostname, endpoint path, or any identifying URL in a
    workflow YAML file.** Move them into repo secrets.
 2. **Never name a workflow file after the target.** Use opaque names
    like `target-1.yml`, `target-2.yml`. Pairing a public filename with
    even a public hostname makes scraping trivial.
-3. The README + template + lib are fine to be public — they describe
+3. **Never echo response bodies, payloads, hostnames, or response
+   shapes to stdout.** GitHub workflow run logs at
+   `github.com/<owner>/<repo>/actions/runs/<id>/logs` are publicly
+   accessible for the lifetime of the run (default 90 days). Print
+   only counts + HTTP status codes. If you must debug payload shape,
+   do it locally with `act` or in a private fork.
+4. The README + template + lib are fine to be public — they describe
    the mechanism, not which targets are wired up.
+
+### Cleaning up leaked past runs
+
+If you discover a workflow has been logging payload contents, deleting
+the workflow runs is necessary because GitHub does not allow editing
+run logs in place:
+
+- UI: Actions tab → workflow → click the run → top-right `...` menu →
+  "Delete workflow run"
+- gh CLI: `gh run delete <run-id>` (for each affected run)
+- Or temporarily make the repo private until logs expire (90 days)
 
 If you must store identifying info in YAML (e.g. for an audit trail
 that ties workflows to projects), keep this repo private and accept

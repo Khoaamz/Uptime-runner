@@ -32,17 +32,23 @@ jobs:
           REPORT_URL: ${{ secrets.TARGET_N_REPORT_URL }}
         run: |
           set -euo pipefail
+          # Silent run — public-repo workflow logs are world-readable.
+          # NEVER echo $CHECKS, $REPORTS, target hostnames, or response
+          # bodies. Counts + HTTP status codes only.
           DOMAINS=$(curl -fsS \
             -H "X-Internal-Auth: $TOKEN" \
             "$LIST_URL" \
             | jq -r '.domains[] | .domain')
-          if [ -z "$DOMAINS" ]; then
-            echo "No targets. Nothing to probe."
+          COUNT=$(echo "$DOMAINS" | grep -c . || true)
+          if [ "$COUNT" = "0" ]; then
+            echo "no_targets"
             exit 0
           fi
+          echo "probing ${COUNT} target(s)"
           CHECKS=$(./lib/probe.sh $DOMAINS)
-          curl -fsS -X POST \
+          HTTP_CODE=$(curl -fsS -o /dev/null -w '%{http_code}' -X POST \
             -H "X-Internal-Auth: $TOKEN" \
             -H "Content-Type: application/json" \
             -d "$(jq -n --argjson c "$CHECKS" '{checks: $c}')" \
-            "$REPORT_URL"
+            "$REPORT_URL")
+          echo "report_http=${HTTP_CODE}"
